@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rada-${ENV}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rada-config
+  namespace: rada-${ENV}
+data:
+  NODE_ENV: "${ENV}"
+  API_URL: "https://api.rada.co.ke"
+  REDIS_HOST: "rada-redis"
+  REDIS_PORT: "6379"
+  ALLOWED_ORIGINS: "https://rada.co.ke,https://app.rada.co.ke"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rada-secrets
+  namespace: rada-${ENV}
+type: Opaque
+data:
+  JWT_SECRET: ${BASE64_JWT_SECRET}
+  MPESA_CONSUMER_KEY: ${BASE64_MPESA_KEY}
+  MPESA_CONSUMER_SECRET: ${BASE64_MPESA_SECRET}
+  REDIS_PASSWORD: ${BASE64_REDIS_PASS}
+  POSTGRES_PASSWORD: ${BASE64_PG_PASS}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rada-api
+  namespace: rada-${ENV}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rada-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: rada-api
+    spec:
+      containers:
+      - name: api
+        image: rada/api:${VERSION}
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: rada-config
+              key: NODE_ENV
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: rada-secrets
+              key: JWT_SECRET
+        envFrom:
+        - configMapRef:
+            name: rada-config
+        - secretRef:
+            name: rada-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rada-api
+  namespace: rada-${ENV}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    app: rada-api
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rada-ingress
+  namespace: rada-${ENV}
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - api.rada.co.ke
+    secretName: rada-tls
+  rules:
+  - host: api.rada.co.ke
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rada-api
+            port:
+              number: 80
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rada-api-hpa
+  namespace: rada-${ENV}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rada-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      targetAverageUtilization: 80

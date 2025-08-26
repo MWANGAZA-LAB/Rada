@@ -1,0 +1,22 @@
+﻿{
+    "development": {
+        "database": {
+            "host": "localhost",
+            "port": 5432,
+            "database": "rada_dev",
+            "username": "postgres"
+        },
+        "redis": {
+            "host": "localhost",
+            "port": 6379
+        },
+        "api": {
+            "port": 8080,
+            "corsOrigins": ["http://localhost:3000"]
+        },
+        "security": {
+            "rateLimitRequests": 100,
+            "rateLimitWindowMs": 900000
+        }
+    }
+}

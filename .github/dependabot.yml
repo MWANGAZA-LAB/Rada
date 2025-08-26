@@ -1,0 +1,76 @@
+# Dependabot configuration file
+version: 2
+updates:
+  # Backend API dependencies
+  - package-ecosystem: "npm"
+    directory: "/services/api-gateway"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/backend-team"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+
+  - package-ecosystem: "npm"
+    directory: "/services/lightning-service"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/backend-team"
+    labels:
+      - "dependencies"
+      - "backend"
+
+  - package-ecosystem: "npm"
+    directory: "/services/mpesa-service"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/backend-team"
+    labels:
+      - "dependencies"
+      - "backend"
+
+  # Mobile app dependencies
+  - package-ecosystem: "npm"
+    directory: "/mobile-app"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/mobile-team"
+    labels:
+      - "dependencies"
+      - "mobile"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/devops-team"
+    labels:
+      - "dependencies"
+      - "ci-cd"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/services/api-gateway"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    assignees:
+      - "MWANGAZA-LAB/devops-team"
+    labels:
+      - "dependencies"
+      - "docker"

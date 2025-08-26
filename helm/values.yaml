@@ -1,0 +1,120 @@
+# Default values for rada.
+# This is a YAML-formatted file.
+
+replicaCount: 3
+
+image:
+  repository: rada/api
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: api.rada.co.ke
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: rada-tls
+      hosts:
+        - api.rada.co.ke
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+env:
+  NODE_ENV: production
+  API_URL: "https://api.rada.co.ke"
+  REDIS_HOST: "rada-redis"
+  REDIS_PORT: "6379"
+  ALLOWED_ORIGINS: "https://rada.co.ke,https://app.rada.co.ke"
+
+secrets:
+  JWT_SECRET: ""
+  MPESA_CONSUMER_KEY: ""
+  MPESA_CONSUMER_SECRET: ""
+  REDIS_PASSWORD: ""
+  POSTGRES_PASSWORD: ""
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+
+postgresql:
+  enabled: true
+  postgresqlUsername: rada
+  postgresqlDatabase: rada
+  postgresqlPassword: ""
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+prometheus:
+  enabled: true
+  alertmanager:
+    enabled: true
+  pushgateway:
+    enabled: false
+
+grafana:
+  enabled: true
+  adminPassword: ""
+  dashboards:
+    default:
+      rada-dashboard:
+        json: |
+          {
+            "dashboard": {
+              "id": null,
+              "title": "Rada Dashboard",
+              "panels": []
+            }
+          }

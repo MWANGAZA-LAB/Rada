@@ -1,0 +1,101 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rada-db-backup
+  namespace: ${ENVIRONMENT}
+spec:
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: db-backup
+            image: postgres:13
+            command:
+            - /bin/sh
+            - -c
+            - |
+              pg_dump -h rada-db -U postgres -d rada | gzip > /backup/rada-$(date +%Y%m%d-%H%M%S).sql.gz
+              gsutil cp /backup/*.gz gs://rada-backups/${ENVIRONMENT}/
+              gsutil ls -l gs://rada-backups/${ENVIRONMENT}/ | sort -k2 | head -n -5 | awk '{print $3}' | xargs -r gsutil rm
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rada-db-secrets
+                  key: DB_PASSWORD
+            volumeMounts:
+            - name: backup
+              mountPath: /backup
+            - name: google-cloud-key
+              mountPath: /var/secrets/google
+          volumes:
+          - name: backup
+            emptyDir: {}
+          - name: google-cloud-key
+            secret:
+              secretName: google-cloud-storage-key
+          restartPolicy: OnFailure
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disaster-recovery-procedures
+  namespace: ${ENVIRONMENT}
+data:
+  README.md: |
+    # Rada Disaster Recovery Procedures
+
+    ## Database Recovery
+    1. List available backups:
+       ```
+       gsutil ls gs://rada-backups/${ENVIRONMENT}/
+       ```
+    
+    2. Copy the latest backup:
+       ```
+       gsutil cp gs://rada-backups/${ENVIRONMENT}/latest.sql.gz .
+       ```
+    
+    3. Restore the database:
+       ```
+       gunzip -c latest.sql.gz | psql -h rada-db -U postgres -d rada
+       ```
+
+    ## Application Recovery
+    1. Scale down all deployments:
+       ```
+       kubectl scale deployment --all --replicas=0 -n ${ENVIRONMENT}
+       ```
+    
+    2. Restore database from backup
+    
+    3. Scale up deployments one by one:
+       ```
+       kubectl scale deployment rada-api --replicas=1 -n ${ENVIRONMENT}
+       kubectl scale deployment rada-worker --replicas=1 -n ${ENVIRONMENT}
+       ```
+    
+    4. Verify application health:
+       ```
+       kubectl get pods -n ${ENVIRONMENT}
+       curl https://api.rada.co.ke/health
+       ```
+
+    ## Emergency Contacts
+    - Platform Team: platform@rada.co.ke
+    - Security Team: security@rada.co.ke
+    - On-Call Engineer: +254 XXX XXX XXX
+
+    ## Recovery Time Objectives (RTO)
+    - Critical Services: 1 hour
+    - Non-Critical Services: 4 hours
+
+    ## Recovery Point Objectives (RPO)
+    - Database: 24 hours
+    - File Storage: 24 hours

@@ -1,0 +1,87 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: rada_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        cd services/api-gateway && npm install
+        cd ../lightning-service && npm install
+        cd ../mpesa-service && npm install
+        cd ../exchange-service && npm install
+
+    - name: Create test database schema
+      run: |
+        psql -h localhost -U test -d rada_test -f services/schema.sql
+      env:
+        PGPASSWORD: test
+
+    - name: Run API Gateway tests
+      run: cd services/api-gateway && npm test
+      env:
+        NODE_ENV: test
+        TEST_DATABASE_URL: postgresql://test:test@localhost:5432/rada_test
+        JWT_SECRET: test_jwt_secret
+        REDIS_URL: redis://localhost:6379/1
+
+    - name: Run Lightning Service tests
+      run: cd services/lightning-service && npm test
+      env:
+        NODE_ENV: test
+        TEST_LND_CERT: ${{ secrets.TEST_LND_CERT }}
+        TEST_LND_MACAROON: ${{ secrets.TEST_LND_MACAROON }}
+
+    - name: Run M-PESA Service tests
+      run: cd services/mpesa-service && npm test
+      env:
+        NODE_ENV: test
+        MPESA_API_URL: https://sandbox.safaricom.co.ke
+        MPESA_CONSUMER_KEY: test_consumer_key
+        MPESA_CONSUMER_SECRET: test_consumer_secret
+
+    - name: Run Exchange Service tests
+      run: cd services/exchange-service && npm test
+      env:
+        NODE_ENV: test
+        REDIS_URL: redis://localhost:6379/1
